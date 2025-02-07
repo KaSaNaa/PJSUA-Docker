@@ -1,0 +1,72 @@
+
+create folder as phone and create file as Dockerfile and add below. This will download and install pjsua in debian
+
+
+FROM debian:latest
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libasound2-dev \
+    libv4l-dev \
+    libsdl2-dev \
+    libavcodec-dev \
+    libavformat-dev \
+    libswscale-dev \
+    libportaudio2 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download and build PJSIP
+WORKDIR /usr/src
+RUN curl -LO https://github.com/pjsip/pjproject/archive/refs/tags/2.13.tar.gz \
+    && tar xzf 2.13.tar.gz \
+    && cd pjproject-2.13 \
+    && ./configure --prefix=/usr --enable-shared --disable-video --disable-sound \
+    && make -j$(nproc) \
+    && make install \
+    && ldconfig
+
+# Check if pjsua exists, if not copy it manually
+RUN if [ ! -f /usr/bin/pjsua ]; then \
+        cp /usr/src/pjproject-2.13/pjsip-apps/bin/pjsua-x86_64-unknown-linux-gnu /usr/bin/pjsua && \
+        chmod +x /usr/bin/pjsua; \
+    fi
+
+# Set entrypoint
+ENTRYPOINT ["/usr/bin/pjsua"]
+
+------------------------------------------------------------
+
+veryfy by running docker run --rm pjsua --help
+
+
+----------------------------------------------------------
+
+create file as 1035.cfg 
+
+--id sip:1035@192.168.62.80
+--registrar sip:192.168.62.80
+--realm ccmsipline
+--username user1035
+--password user1035
+--contact sip:192.168.62.251:5060
+--local-port 5060
+--log-level 5
+--auto-answer 200
+
+
+------------------------------------
+
+create few docker networks
+ 
+docker network create --subnet=172.18.0.0/16 pjsua-network
+
+this will create 65,536 IP addresses
+-----------------------------------------------
+
+
+run docker image by passing 1035.cfg and pjsua-network
+
+
+docker run --rm -it --net pjsua-network -v $(pwd)/pjsua.cfg:/config/pjsua.cfg pjsua --config-file=/config/pjsua.cfg
